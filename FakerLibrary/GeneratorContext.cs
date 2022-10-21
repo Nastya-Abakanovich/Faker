@@ -15,12 +15,11 @@ namespace FakerLibrary
         // Даем возможность генератору использовать все возможности Faker.
         // Необходимо для создания коллекций произвольных объектов,
         // но может быть удобно и в некоторых других случаях.
-        public Faker Faker { get; }
-​
-    public GeneratorContext(Random random, Faker faker)
+        public Faker CurrFaker { get; }
+        public GeneratorContext(Random random, Faker faker)
         {
             Random = random;
-            Faker = faker;
+            CurrFaker = faker;
         }
     }
 }
