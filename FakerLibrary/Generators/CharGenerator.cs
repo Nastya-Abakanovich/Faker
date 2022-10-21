@@ -8,6 +8,7 @@ namespace FakerLibrary.Generators
 {
     public class CharGenerator : IGenerator
     {
+        private const string stringSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         public bool CanGenerate(Type type)
         {
             return type == typeof(char);
@@ -15,7 +16,7 @@ namespace FakerLibrary.Generators
 
         public object Generate(Type type, GeneratorContext context)
         {
-            return (char)context.Random.Next();
+            return stringSymbols[context.Random.Next(stringSymbols.Length)];
         }
     }
 }
