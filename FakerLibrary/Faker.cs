@@ -1,101 +1,119 @@
-﻿namespace FakerLibrary
+﻿using System.Reflection;
+using FakerLibrary.Generators;
+
+namespace FakerLibrary
 {
     public class Faker
     {
-        private Random rnd;
+        private readonly GeneratorContext _generatorContext;
+        private IEnumerable<IGenerator> _generators;
+        private Faker _faker;
+
+        public Faker()
+        {
+            _generators = GetGenerators();
+            _generatorContext = new GeneratorContext(new Random(), this);
+        }
+
         public T Create<T>()
         {
             return (T)Create(typeof(T));
         }
 
+
         // Может быть вызван изнутри Faker, из IValueGenerator (см. ниже) или пользователем
         public object Create(Type t)
         {
-            if (rnd == null)
-            {
-                rnd = new Random();
-            }
-            string stringSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-            if (t == typeof(int))
-            {
-                return rnd.Next(int.MinValue, int.MaxValue);
-            }
-            else if (t == typeof(long))
-            {
-                return rnd.NextInt64(long.MinValue, long.MaxValue);
-            }
-            else if (t == typeof(bool))
-            {
-                if (rnd.Next(2) == 1)
-                    return true;
-                else
-                    return false;
-            }
-            else if (t == typeof(double))
-            {
-                return rnd.NextDouble() + rnd.Next(-1000, 1001);
-            }
-            else if (t == typeof(float))
-            {
-                return (float)rnd.NextDouble() + rnd.Next(-1000, 1001);
-            }
-            else if (t == typeof(DateTime))
-            {
-                DateTime start = new DateTime(1950, 1, 1);
-                return start.AddSeconds(rnd.NextInt64((long)(DateTime.Today - start).TotalSeconds));
-            }
-            else if (t == typeof(string))
-            {
-                var length = rnd.Next(5, 31);
-                var randomStr = new string(Enumerable.Repeat(stringSymbols, length)
-                    .Select(s => s[rnd.Next(s.Length)]).ToArray());
-                return randomStr;
-            }
-            else if (t == typeof(char))
-            {
-                return stringSymbols[rnd.Next(stringSymbols.Length)];
-            }
-            else if (t == typeof(byte))
-            {
-                return (byte) rnd.Next(byte.MaxValue + 1);
-            }
-            else if (t == typeof(sbyte))
-            {
-                return (sbyte)rnd.Next(sbyte.MinValue, sbyte.MaxValue + 1);
-            }
-            else if (t == typeof(short))
-            {
-                return (short)rnd.Next(short.MinValue, short.MaxValue + 1);
-            }
-            else if (t == typeof(ushort))
-            {
-                return (ushort)rnd.Next(ushort.MaxValue + 1);
-            }
-            else if (t == typeof(uint))
-            {
-                return (uint)rnd.Next(int.MaxValue);
-            }
-            else if (t == typeof(ulong))
-            {
-                return (ulong)rnd.NextInt64(long.MaxValue);
-            }
-            else
-            {
-                return null;
-            }
+            object newObject = _generators.Where(g => g.CanGenerate(t)).
+                    Select(g => g.Generate(t, _generatorContext)).FirstOrDefault();
 
-            // Процедура создания и инициализации объекта.
+            if (newObject == null)
+            {
+                _faker =_faker ?? new Faker();
+
+                newObject = CallConstructor(t);
+                RandomFields(ref newObject);
+                RandomProperties(ref newObject);
+            }       
+          
+            return newObject;
         }
+
+        private object CallConstructor(Type t)
+        {
+            var constructors = t.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+            int currLength, maxLength = 0;
+            ConstructorInfo? maxConstructor = null;
+
+            foreach (var constructor in constructors)
+            {
+                currLength = constructor.GetParameters().Length;
+                if (currLength >= maxLength)
+                {
+                    maxLength = currLength;
+                    maxConstructor = constructor;
+                }
+            }
+
+            object[] parametersValue = new object[maxLength];
+            ParameterInfo[] parameters = maxConstructor.GetParameters();
+            for (int i = 0; i < maxLength; i++)
+            {
+                parametersValue[i] = _faker.Create(parameters[i].ParameterType);
+            }
+
+            return maxConstructor.Invoke(parametersValue) ?? Activator.CreateInstance(t); //!!!! проверить без этого при приватном конструкторе
+        }
+
+        private void RandomFields(ref object currObject)
+        {
+            var fields = currObject.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
+            Type fieldType;
+            object value;
+            foreach (var field in fields)
+            {
+                try
+                {
+                    fieldType = field.FieldType;
+                    value = field.GetValue(currObject);
+                    if (value == null || value.Equals(GetDefaultValue(fieldType)))
+                        field.SetValue(currObject, _faker.Create(fieldType));
+                }
+                catch { }
+
+            }
+        }
+
+        private void RandomProperties(ref object currObject)
+        {
+            var properties = currObject.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            Type propType;
+            object value;
+            foreach (var prop in properties)
+            {
+                try
+                {
+                    propType = prop.PropertyType;
+                    value = prop.GetValue(currObject);
+                    if (value == null || value.Equals(GetDefaultValue(propType)))
+                        prop.SetValue(currObject, _faker.Create(propType));
+                }
+                catch { }
+            }
+        }
+
+        private IEnumerable<IGenerator> GetGenerators()
+        {
+            return Assembly.GetExecutingAssembly().GetTypes()
+                .Where(t => t.GetInterfaces().Contains(typeof(IGenerator)))
+                .Select(t => (IGenerator)Activator.CreateInstance(t));
+        }
+
 
         private static object GetDefaultValue(Type t)
         {
-            if (t.IsValueType)
-                // Для типов-значений вызов конструктора по умолчанию даст default(T).
-                return Activator.CreateInstance(t);
-            else
-                // Для ссылочных типов значение по умолчанию всегда null.
-                return null;
+            return t.IsValueType ? Activator.CreateInstance(t) : null;
         }
 
 
