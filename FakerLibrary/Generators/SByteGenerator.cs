@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace FakerLibrary.Generators
 {
-    public class SByteGenerator: IGenerator
+    public class SbyteGenerator: IGenerator
     {
         public bool CanGenerate(Type type)
         {

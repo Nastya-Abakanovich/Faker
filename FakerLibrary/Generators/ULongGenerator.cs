@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace FakerLibrary.Generators
 {
-    public class ULongGenerator: IGenerator
+    public class UlongGenerator: IGenerator
     {
         public bool CanGenerate(Type type)
         {

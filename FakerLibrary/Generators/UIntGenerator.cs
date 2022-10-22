@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace FakerLibrary.Generators
 {
-    public class UIntGenerator: IGenerator
+    public class UintGenerator: IGenerator
     {
         public bool CanGenerate(Type type)
         {
