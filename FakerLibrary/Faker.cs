@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics;
+using System.Reflection;
 using FakerLibrary.Generators;
 
 namespace FakerLibrary
@@ -8,11 +9,13 @@ namespace FakerLibrary
         private readonly GeneratorContext _generatorContext;
         private IEnumerable<IGenerator> _generators;
         private Faker _faker;
+        private List<Type> _createTypes;  
 
         public Faker()
         {
             _generators = GetGenerators();
             _generatorContext = new GeneratorContext(new Random(), this);
+            _createTypes = new List<Type>();
         }
 
         public T Create<T>()
@@ -20,53 +23,56 @@ namespace FakerLibrary
             return (T)Create(typeof(T));
         }
 
-
-        // Может быть вызван изнутри Faker, из IValueGenerator (см. ниже) или пользователем
         public object Create(Type t)
         {
-
+            _createTypes.Add(t);
             object newObject = _generators.Where(g => g.CanGenerate(t)).
                     Select(g => g.Generate(t, _generatorContext)).FirstOrDefault();
 
-            if (newObject == null)
+            if (newObject == null && t.IsClass)
             {
                 _faker =_faker ?? new Faker();
 
                 newObject = CallConstructor(t);
-                RandomFields(ref newObject);
-                RandomProperties(ref newObject);
+                FillFields(ref newObject);
+                FillProperties(ref newObject);
             }       
-          
-            return newObject;
+            _createTypes.RemoveAt(_createTypes.Count - 1);
+            return newObject ?? GetDefaultValue(t);
         }
 
         private object CallConstructor(Type t)
         {
             var constructors = t.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-            int currLength, maxLength = 0;
+            int currParam, maxParam = 0;
             ConstructorInfo? maxConstructor = null;
+
+            if (constructors.Length == 0)
+            {
+                return Activator.CreateInstance(t);
+            }
 
             foreach (var constructor in constructors)
             {
-                currLength = constructor.GetParameters().Length;
-                if (currLength >= maxLength)
+                currParam = constructor.GetParameters().Length;
+                if (currParam >= maxParam)
                 {
-                    maxLength = currLength;
+                    maxParam = currParam;
                     maxConstructor = constructor;
                 }
             }
 
-            object[] parametersValue = new object[maxLength];
+            object[] parametersValue = new object[maxParam];
             ParameterInfo[] parameters = maxConstructor.GetParameters();
-            for (int i = 0; i < maxLength; i++)
+            for (int i = 0; i < maxParam; i++)
             {
                 parametersValue[i] = _faker.Create(parameters[i].ParameterType);
             }
 
-            return maxConstructor.Invoke(parametersValue) ?? Activator.CreateInstance(t); //!!!! проверить без этого при приватном конструкторе
+            return maxConstructor.Invoke(parametersValue); 
         }
 
-        private void RandomFields(ref object currObject)
+        private void FillFields(ref object currObject)
         {
             var fields = currObject.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
             Type fieldType;
@@ -77,17 +83,24 @@ namespace FakerLibrary
                 {
                     fieldType = field.FieldType;
                     value = field.GetValue(currObject);
-                    if (value == null || value.Equals(GetDefaultValue(fieldType)))
-                        field.SetValue(currObject, _faker.Create(fieldType));
+                    if (!_createTypes.Contains(fieldType))
+                    {
+                        if (value == null || value.Equals(GetDefaultValue(fieldType)))
+                            field.SetValue(currObject, _faker.Create(fieldType));
+                    }
+                    else
+                    {
+                        field.SetValue(currObject, GetDefaultValue(fieldType));
+                    }
                 }
                 catch { }
 
             }
         }
 
-        private void RandomProperties(ref object currObject)
+        private void FillProperties(ref object currObject)
         {
-            var properties = currObject.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            var properties = currObject.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.SetProperty);
             Type propType;
             object value;
             foreach (var prop in properties)
@@ -95,11 +108,22 @@ namespace FakerLibrary
                 try
                 {
                     propType = prop.PropertyType;
+                    
                     value = prop.GetValue(currObject);
-                    if (value == null || value.Equals(GetDefaultValue(propType)))
+                    if (!_createTypes.Contains(propType))
+                    {
+                        if (value == null || value.Equals(GetDefaultValue(propType)))
                         prop.SetValue(currObject, _faker.Create(propType));
+                    }
+                    else
+                    {
+                        prop.SetValue(currObject, GetDefaultValue(propType));
+                    }
                 }
-                catch { }
+                catch (ArgumentException e) 
+                {
+                    prop.SetValue(currObject, _faker.Create(prop.PropertyType));
+                }
             }
         }
 
