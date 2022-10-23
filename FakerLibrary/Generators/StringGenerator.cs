@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace FakerLibrary.Generators
+﻿namespace FakerLibrary.Generators
 {
-    public class StringGenerator: IGenerator
+    public class StringGenerator : IGenerator
     {
         private const string stringSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         public bool CanGenerate(Type type)
