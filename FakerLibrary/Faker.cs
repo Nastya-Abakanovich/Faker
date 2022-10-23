@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
 using FakerLibrary.Generators;
 
 namespace FakerLibrary
@@ -14,8 +13,25 @@ namespace FakerLibrary
         public Faker()
         {
             _generators = GetGenerators();
+            try
+            {
+                Assembly assemblyOne = Assembly.LoadFrom("../../../../GeneratorOne.dll");
+                Type typeBoolGenerator = assemblyOne.GetType("GeneratorOne.BoolGenerator");
+                _generators = _generators.Append((IGenerator)Activator.CreateInstance(typeBoolGenerator));
+            }
+            catch { }
+
+            try
+            {
+                Assembly assemblyTwo = Assembly.LoadFrom("../../../../GeneratorTwo.dll");
+                Type typeCharGenerator = assemblyTwo.GetType("GeneratorTwo.CharGenerator");
+                _generators = _generators.Append((IGenerator)Activator.CreateInstance(typeCharGenerator));
+            }
+            catch { }            
+
             _generatorContext = new GeneratorContext(new Random(), this);
             _createTypes = new List<Type>();
+            _faker = this;
         }
 
         public T Create<T>()
@@ -31,7 +47,7 @@ namespace FakerLibrary
 
             if (newObject == null && t.IsClass)
             {
-                _faker =_faker ?? new Faker();
+                _faker = _faker ?? new Faker();
 
                 newObject = CallConstructor(t);
                 FillFields(ref newObject);
@@ -49,7 +65,7 @@ namespace FakerLibrary
 
             if (constructors.Length == 0)
             {
-                return Activator.CreateInstance(t);
+                constructors = t.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
             }
 
             foreach (var constructor in constructors)
@@ -135,7 +151,7 @@ namespace FakerLibrary
         }
 
 
-        private static object GetDefaultValue(Type t)
+        public static object GetDefaultValue(Type t)
         {
             return t.IsValueType ? Activator.CreateInstance(t) : null;
         }

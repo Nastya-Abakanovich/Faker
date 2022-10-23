@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="Modules">
+      <HintPath>bin\Debug\net6.0\Modules.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
